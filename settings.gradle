@@ -1,0 +1,23 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Aliyun Gradle Plugin'
+            url = 'https://maven.aliyun.com/repository/gradle-plugin'
+        }
+        maven {
+            name = 'Aliyun Public'
+            url = 'https://maven.aliyun.com/repository/public'
+        }
+        gradlePluginPortal()
+        maven {
+            name = 'MinecraftForge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
+}
+
+rootProject.name = 'pixelmcwelcome-1.20.1'
