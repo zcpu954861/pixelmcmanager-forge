@@ -1,9 +1,9 @@
-package com.pixelmc.pixelmcwelcome.config;
+package com.pixelmc.pixelmcmanager.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
-import com.pixelmc.pixelmcwelcome.PixelMCWelcome;
+import com.pixelmc.pixelmcmanager.PixelMCManager;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
@@ -11,18 +11,22 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public final class WelcomeConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final String LEGACY_MOD_ID = "pixelmcwelcome";
 
     private final Logger logger;
     private final Path configPath;
+    private final Path legacyConfigPath;
     private WelcomeConfig config = WelcomeConfig.defaults();
     private String lastError = "";
 
     public WelcomeConfigManager(Logger logger) {
         this.logger = logger;
-        this.configPath = FMLPaths.CONFIGDIR.get().resolve(PixelMCWelcome.MOD_ID + ".json");
+        this.configPath = FMLPaths.CONFIGDIR.get().resolve(PixelMCManager.MOD_ID + ".json");
+        this.legacyConfigPath = FMLPaths.CONFIGDIR.get().resolve(LEGACY_MOD_ID + ".json");
     }
 
     public WelcomeConfig getConfig() {
@@ -36,6 +40,7 @@ public final class WelcomeConfigManager {
     public LoadResult loadOrCreate() {
         try {
             Files.createDirectories(configPath.getParent());
+            migrateLegacyConfigIfNeeded();
             if (Files.notExists(configPath)) {
                 config = WelcomeConfig.defaults();
                 writeDefault();
@@ -54,13 +59,20 @@ public final class WelcomeConfigManager {
             return LoadResult.success("Config loaded.");
         } catch (Exception exception) {
             lastError = exception.getMessage();
-            logger.error("Failed to load PixelMC Welcome config from {}. Keeping previous valid config.", configPath, exception);
+            logger.error("Failed to load PixelMC Manager config from {}. Keeping previous valid config.", configPath, exception);
             return LoadResult.failure(lastError);
         }
     }
 
     private void writeDefault() throws IOException {
         Files.writeString(configPath, GSON.toJson(config), StandardCharsets.UTF_8);
+    }
+
+    private void migrateLegacyConfigIfNeeded() throws IOException {
+        if (Files.notExists(configPath) && Files.exists(legacyConfigPath)) {
+            Files.copy(legacyConfigPath, configPath, StandardCopyOption.COPY_ATTRIBUTES);
+            logger.info("Copied legacy pixelmcwelcome config from {} to {}.", legacyConfigPath, configPath);
+        }
     }
 
     public record LoadResult(boolean success, String message) {

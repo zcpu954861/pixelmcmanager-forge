@@ -1,4 +1,4 @@
-package com.pixelmc.pixelmcwelcome.util;
+package com.pixelmc.pixelmcmanager.util;
 
 import java.time.Instant;
 import java.time.ZoneId;

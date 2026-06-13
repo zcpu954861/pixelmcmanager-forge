@@ -1,4 +1,4 @@
-package com.pixelmc.pixelmcwelcome.stats;
+package com.pixelmc.pixelmcmanager.stats;
 
 public final class PlayerStats {
     public String name = "";

@@ -1,19 +1,22 @@
-package com.pixelmc.pixelmcwelcome.command;
+package com.pixelmc.pixelmcmanager.command;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import com.pixelmc.pixelmcwelcome.config.WelcomeConfig;
-import com.pixelmc.pixelmcwelcome.config.WelcomeConfigManager;
-import com.pixelmc.pixelmcwelcome.stats.PlayerStats;
-import com.pixelmc.pixelmcwelcome.stats.PlayerStatsEntry;
-import com.pixelmc.pixelmcwelcome.stats.PlayerStatsStore;
-import com.pixelmc.pixelmcwelcome.text.TextTemplateParser;
-import com.pixelmc.pixelmcwelcome.util.TimeFormatUtil;
+import com.pixelmc.pixelmcmanager.config.WelcomeConfig;
+import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.placeholder.PlaceholderContext;
+import com.pixelmc.pixelmcmanager.placeholder.PlaceholderResolver;
+import com.pixelmc.pixelmcmanager.stats.PlayerStats;
+import com.pixelmc.pixelmcmanager.stats.PlayerStatsEntry;
+import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
+import com.pixelmc.pixelmcmanager.text.TextTemplateParser;
+import com.pixelmc.pixelmcmanager.util.TimeFormatUtil;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
@@ -24,20 +27,34 @@ import java.util.Optional;
 public final class PixelMCManagerCommands {
     private final WelcomeConfigManager configManager;
     private final PlayerStatsStore statsStore;
+    private final PlaceholderResolver placeholderResolver;
     private final TextTemplateParser textParser;
 
-    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, TextTemplateParser textParser) {
+    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, PlaceholderResolver placeholderResolver, TextTemplateParser textParser) {
         this.configManager = configManager;
         this.statsStore = statsStore;
+        this.placeholderResolver = placeholderResolver;
         this.textParser = textParser;
     }
 
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
-        dispatcher.register(Commands.literal("pixelmcmanager")
+        dispatcher.register(managerRoot());
+    }
+
+    private com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> managerRoot() {
+        return Commands.literal("pixelmcmanager")
                 .requires(source -> source.hasPermission(2))
                 .executes(context -> help(context.getSource()))
+                .then(Commands.literal("reload")
+                        .executes(context -> reload(context.getSource())))
+                .then(Commands.literal("preview")
+                        .executes(context -> preview(context.getSource(), false))
+                        .then(Commands.literal("first")
+                                .executes(context -> preview(context.getSource(), true)))
+                        .then(Commands.literal("returning")
+                                .executes(context -> preview(context.getSource(), false))))
                 .then(Commands.literal("logincount")
                         .executes(context -> listLoginCounts(context.getSource()))
                         .then(Commands.argument("player", StringArgumentType.word())
@@ -53,15 +70,58 @@ public final class PixelMCManagerCommands {
                                     statsStore.ensureLoaded(context.getSource().getServer());
                                     return SharedSuggestionProvider.suggest(statsStore.listKnownPlayerNames(), builder);
                                 })
-                                .executes(context -> showLoginTime(context.getSource(), StringArgumentType.getString(context, "player"))))));
+                                .executes(context -> showLoginTime(context.getSource(), StringArgumentType.getString(context, "player")))));
     }
 
     private int help(CommandSourceStack source) {
         send(source, "&7❰ &b&l✦ &f&lPixelMC Manager &e&l✦ &7❱");
-        send(source, "&b/pixelmcmanager logincount");
-        send(source, "&b/pixelmcmanager logincount <player>");
-        send(source, "&d/pixelmcmanager logintime");
-        send(source, "&d/pixelmcmanager logintime <player>");
+        send(source, "&b/pixelmcmanager reload");
+        send(source, "&b/pixelmcmanager preview [first|returning]");
+        send(source, "&b/pixelmcmanager logincount [player]");
+        send(source, "&d/pixelmcmanager logintime [player]");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int reload(CommandSourceStack source) {
+        WelcomeConfigManager.LoadResult result = configManager.loadOrCreate();
+        if (result.success()) {
+            source.sendSuccess(() -> Component.literal("PixelMC Manager 配置已重新加载。"), false);
+            return Command.SINGLE_SUCCESS;
+        }
+
+        source.sendFailure(Component.literal("PixelMC Manager 配置加载失败，已保留旧配置：" + result.message()));
+        return 0;
+    }
+
+    private int preview(CommandSourceStack source, boolean first) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("该命令需要玩家执行。"));
+            return 0;
+        }
+
+        WelcomeConfig config = configManager.getConfig();
+        List<String> templates = first ? config.firstJoinMessages : config.returningMessages;
+        if (templates.isEmpty()) {
+            source.sendFailure(Component.literal("PixelMC Manager 当前预览消息为空。"));
+            return 0;
+        }
+
+        PlayerStats stats = statsStore.getStats(player.getUUID());
+        if (stats == null) {
+            stats = new PlayerStats();
+            stats.name = player.getGameProfile().getName();
+            stats.joinCount = first ? 1 : 0;
+            long now = System.currentTimeMillis();
+            stats.firstJoinEpochMillis = now;
+            stats.lastJoinEpochMillis = now;
+        }
+
+        PlaceholderContext placeholderContext = new PlaceholderContext(player, config, stats, stats.lastJoinEpochMillis);
+        for (String template : templates) {
+            String resolved = placeholderResolver.resolve(template, placeholderContext);
+            player.sendSystemMessage(textParser.parse(resolved, config));
+        }
+        source.sendSuccess(() -> Component.literal("PixelMC Manager 预览已发送。"), false);
         return Command.SINGLE_SUCCESS;
     }
 

@@ -1,4 +1,4 @@
-package com.pixelmc.pixelmcwelcome.config;
+package com.pixelmc.pixelmcmanager.config;
 
 import java.util.ArrayList;
 import java.util.List;

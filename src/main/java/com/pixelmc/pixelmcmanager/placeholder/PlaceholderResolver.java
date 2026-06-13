@@ -1,7 +1,7 @@
-package com.pixelmc.pixelmcwelcome.placeholder;
+package com.pixelmc.pixelmcmanager.placeholder;
 
-import com.pixelmc.pixelmcwelcome.stats.PlayerStats;
-import com.pixelmc.pixelmcwelcome.util.TimeFormatUtil;
+import com.pixelmc.pixelmcmanager.stats.PlayerStats;
+import com.pixelmc.pixelmcmanager.util.TimeFormatUtil;
 import net.minecraft.server.MinecraftServer;
 
 import java.time.Instant;

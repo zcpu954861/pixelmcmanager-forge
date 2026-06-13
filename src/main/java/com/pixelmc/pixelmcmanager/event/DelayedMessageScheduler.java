@@ -1,12 +1,12 @@
-package com.pixelmc.pixelmcwelcome.event;
+package com.pixelmc.pixelmcmanager.event;
 
-import com.pixelmc.pixelmcwelcome.config.WelcomeConfig;
-import com.pixelmc.pixelmcwelcome.config.WelcomeConfigManager;
-import com.pixelmc.pixelmcwelcome.placeholder.PlaceholderContext;
-import com.pixelmc.pixelmcwelcome.placeholder.PlaceholderResolver;
-import com.pixelmc.pixelmcwelcome.stats.PlayerStats;
-import com.pixelmc.pixelmcwelcome.stats.PlayerStatsStore;
-import com.pixelmc.pixelmcwelcome.text.TextTemplateParser;
+import com.pixelmc.pixelmcmanager.config.WelcomeConfig;
+import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.placeholder.PlaceholderContext;
+import com.pixelmc.pixelmcmanager.placeholder.PlaceholderResolver;
+import com.pixelmc.pixelmcmanager.stats.PlayerStats;
+import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
+import com.pixelmc.pixelmcmanager.text.TextTemplateParser;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.TickEvent;

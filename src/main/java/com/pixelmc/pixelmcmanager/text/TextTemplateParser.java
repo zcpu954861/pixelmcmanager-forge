@@ -1,6 +1,6 @@
-package com.pixelmc.pixelmcwelcome.text;
+package com.pixelmc.pixelmcmanager.text;
 
-import com.pixelmc.pixelmcwelcome.config.WelcomeConfig;
+import com.pixelmc.pixelmcmanager.config.WelcomeConfig;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
@@ -34,7 +34,7 @@ public final class TextTemplateParser {
                     continue;
                 }
                 if (config.debugLogging) {
-                    logger.warn("Malformed gradient in PixelMC Welcome message: {}", input);
+                    logger.warn("Malformed gradient in PixelMC Manager message: {}", input);
                 }
             }
 

@@ -1,4 +1,4 @@
-package com.pixelmc.pixelmcwelcome.stats;
+package com.pixelmc.pixelmcmanager.stats;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -34,6 +34,8 @@ import java.util.stream.Collectors;
 
 public final class PlayerStatsStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final String DATA_DIR = "pixelmcmanager";
+    private static final String LEGACY_DATA_DIR = "pixelmcwelcome";
     private static final Type FILE_TYPE = new TypeToken<StatsFile>() {
     }.getType();
 
@@ -49,12 +51,15 @@ public final class PlayerStatsStore {
 
     public synchronized void load(MinecraftServer server) {
         // LevelResource.ROOT resolves inside the active save root, the directory that owns level.dat.
-        dataFile = server.getWorldPath(LevelResource.ROOT).resolve("pixelmcwelcome").resolve("player_stats.json");
+        Path worldRoot = server.getWorldPath(LevelResource.ROOT);
+        dataFile = worldRoot.resolve(DATA_DIR).resolve("player_stats.json");
+        Path legacyDataFile = worldRoot.resolve(LEGACY_DATA_DIR).resolve("player_stats.json");
         players.clear();
         lastAccountedMillis.clear();
 
         try {
             Files.createDirectories(dataFile.getParent());
+            migrateLegacyStatsIfNeeded(legacyDataFile);
             if (Files.notExists(dataFile)) {
                 loaded = true;
                 save();
@@ -73,13 +78,13 @@ public final class PlayerStatsStore {
                         PlayerStats stats = entry.getValue() == null ? new PlayerStats() : entry.getValue();
                         players.put(uuid, stats);
                     } catch (IllegalArgumentException ignored) {
-                        logger.warn("Ignoring invalid player UUID in PixelMC Welcome stats: {}", entry.getKey());
+                        logger.warn("Ignoring invalid player UUID in PixelMC Manager stats: {}", entry.getKey());
                     }
                 }
             }
             loaded = true;
         } catch (Exception exception) {
-            logger.error("Failed to load PixelMC Welcome player stats from {}.", dataFile, exception);
+            logger.error("Failed to load PixelMC Manager player stats from {}.", dataFile, exception);
             backupBrokenStatsFile();
             players.clear();
             loaded = true;
@@ -217,7 +222,7 @@ public final class PlayerStatsStore {
                 Files.move(tempFile, dataFile, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException exception) {
-            logger.error("Failed to save PixelMC Welcome player stats to {}.", dataFile, exception);
+            logger.error("Failed to save PixelMC Manager player stats to {}.", dataFile, exception);
         }
     }
 
@@ -230,9 +235,16 @@ public final class PlayerStatsStore {
         Path backup = dataFile.resolveSibling("player_stats.json.broken-" + timestamp);
         try {
             Files.move(dataFile, backup, StandardCopyOption.REPLACE_EXISTING);
-            logger.warn("Backed up broken PixelMC Welcome stats file to {}.", backup);
+            logger.warn("Backed up broken PixelMC Manager stats file to {}.", backup);
         } catch (IOException exception) {
-            logger.error("Failed to back up broken PixelMC Welcome stats file {}.", dataFile, exception);
+            logger.error("Failed to back up broken PixelMC Manager stats file {}.", dataFile, exception);
+        }
+    }
+
+    private void migrateLegacyStatsIfNeeded(Path legacyDataFile) throws IOException {
+        if (Files.notExists(dataFile) && Files.exists(legacyDataFile)) {
+            Files.copy(legacyDataFile, dataFile, StandardCopyOption.COPY_ATTRIBUTES);
+            logger.info("Copied legacy pixelmcwelcome stats from {} to {}.", legacyDataFile, dataFile);
         }
     }
 

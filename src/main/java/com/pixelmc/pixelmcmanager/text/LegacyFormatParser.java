@@ -1,4 +1,4 @@
-package com.pixelmc.pixelmcwelcome.text;
+package com.pixelmc.pixelmcmanager.text;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Style;

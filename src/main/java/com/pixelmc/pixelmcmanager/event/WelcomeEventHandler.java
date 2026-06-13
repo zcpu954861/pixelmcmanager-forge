@@ -1,8 +1,8 @@
-package com.pixelmc.pixelmcwelcome.event;
+package com.pixelmc.pixelmcmanager.event;
 
-import com.pixelmc.pixelmcwelcome.config.WelcomeConfigManager;
-import com.pixelmc.pixelmcwelcome.stats.PlayerLoginSnapshot;
-import com.pixelmc.pixelmcwelcome.stats.PlayerStatsStore;
+import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.stats.PlayerLoginSnapshot;
+import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
