@@ -11,16 +11,26 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public final class PlayerStatsStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -29,7 +39,7 @@ public final class PlayerStatsStore {
 
     private final Logger logger;
     private final Map<UUID, PlayerStats> players = new LinkedHashMap<>();
-    private final Map<UUID, Long> sessionStarts = new HashMap<>();
+    private final Map<UUID, Long> lastAccountedMillis = new HashMap<>();
     private Path dataFile;
     private boolean loaded = false;
 
@@ -38,9 +48,10 @@ public final class PlayerStatsStore {
     }
 
     public synchronized void load(MinecraftServer server) {
+        // LevelResource.ROOT resolves inside the active save root, the directory that owns level.dat.
         dataFile = server.getWorldPath(LevelResource.ROOT).resolve("pixelmcwelcome").resolve("player_stats.json");
         players.clear();
-        sessionStarts.clear();
+        lastAccountedMillis.clear();
 
         try {
             Files.createDirectories(dataFile.getParent());
@@ -97,7 +108,7 @@ public final class PlayerStatsStore {
         stats.name = player.getGameProfile().getName();
         stats.joinCount++;
         stats.lastJoinEpochMillis = nowMillis;
-        sessionStarts.put(uuid, nowMillis);
+        lastAccountedMillis.put(uuid, nowMillis);
         return new PlayerLoginSnapshot(stats.copy(), firstJoin, previousLastJoin);
     }
 
@@ -110,17 +121,73 @@ public final class PlayerStatsStore {
         return stats == null ? null : stats.copy();
     }
 
+    public synchronized List<PlayerStatsEntry> listAll() {
+        return players.entrySet().stream()
+                .map(entry -> new PlayerStatsEntry(entry.getKey(), entry.getValue().copy()))
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    public synchronized Optional<PlayerStatsEntry> findByName(String name) {
+        if (name == null) {
+            return Optional.empty();
+        }
+        String normalized = name.toLowerCase(Locale.ROOT);
+        return players.entrySet().stream()
+                .filter(entry -> entry.getValue().name != null && entry.getValue().name.toLowerCase(Locale.ROOT).equals(normalized))
+                .findFirst()
+                .map(entry -> new PlayerStatsEntry(entry.getKey(), entry.getValue().copy()));
+    }
+
+    public synchronized Collection<String> listKnownPlayerNames() {
+        Map<String, String> namesByLowercase = new LinkedHashMap<>();
+        players.values().stream()
+                .map(stats -> stats.name)
+                .filter(name -> name != null && !name.isBlank())
+                .sorted(String.CASE_INSENSITIVE_ORDER.thenComparing(Comparator.naturalOrder()))
+                .forEach(name -> namesByLowercase.putIfAbsent(name.toLowerCase(Locale.ROOT), name));
+        return List.copyOf(namesByLowercase.values());
+    }
+
+    public synchronized boolean hasOnlineSessions() {
+        return !lastAccountedMillis.isEmpty();
+    }
+
+    public synchronized void checkpointOnlinePlayers(MinecraftServer server, long nowMillis, boolean saveAfterCheckpoint) {
+        ensureLoaded(server);
+        for (UUID uuid : lastAccountedMillis.keySet().toArray(UUID[]::new)) {
+            if (server.getPlayerList().getPlayer(uuid) != null) {
+                accountOnlineTime(uuid, nowMillis, false);
+            } else {
+                settleSession(uuid, nowMillis);
+            }
+        }
+        if (saveAfterCheckpoint) {
+            save();
+        }
+    }
+
     public synchronized void settleAll(long nowMillis) {
-        for (UUID uuid : sessionStarts.keySet().toArray(UUID[]::new)) {
+        for (UUID uuid : lastAccountedMillis.keySet().toArray(UUID[]::new)) {
             settleSession(uuid, nowMillis);
         }
     }
 
     private void settleSession(UUID uuid, long nowMillis) {
-        Long startedAt = sessionStarts.remove(uuid);
+        accountOnlineTime(uuid, nowMillis, true);
+    }
+
+    private void accountOnlineTime(UUID uuid, long nowMillis, boolean removeSession) {
+        Long accountedAt = lastAccountedMillis.get(uuid);
         PlayerStats stats = players.get(uuid);
-        if (startedAt != null && stats != null) {
-            stats.totalOnlineMillis += Math.max(0L, nowMillis - startedAt);
+        if (accountedAt != null && stats != null) {
+            stats.totalOnlineMillis += Math.max(0L, nowMillis - accountedAt);
+            if (removeSession) {
+                lastAccountedMillis.remove(uuid);
+            } else {
+                lastAccountedMillis.put(uuid, nowMillis);
+            }
+        } else if (removeSession) {
+            lastAccountedMillis.remove(uuid);
         }
     }
 
@@ -138,7 +205,12 @@ public final class PlayerStatsStore {
             }
 
             Path tempFile = dataFile.resolveSibling(dataFile.getFileName() + ".tmp");
-            Files.writeString(tempFile, GSON.toJson(statsFile), StandardCharsets.UTF_8);
+            byte[] bytes = GSON.toJson(statsFile).getBytes(StandardCharsets.UTF_8);
+            try (FileChannel channel = FileChannel.open(tempFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+                channel.write(ByteBuffer.wrap(bytes));
+                // Force temp file contents to disk before replace. Directory fsync is platform dependent on Windows, so atomic replace is still the main protection.
+                channel.force(true);
+            }
             try {
                 Files.move(tempFile, dataFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException atomicMoveFailed) {

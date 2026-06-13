@@ -1,6 +1,7 @@
 package com.pixelmc.pixelmcwelcome;
 
 import com.mojang.logging.LogUtils;
+import com.pixelmc.pixelmcwelcome.command.PixelMCManagerCommands;
 import com.pixelmc.pixelmcwelcome.command.PixelMCWelcomeCommands;
 import com.pixelmc.pixelmcwelcome.config.WelcomeConfigManager;
 import com.pixelmc.pixelmcwelcome.event.DelayedMessageScheduler;
@@ -26,6 +27,7 @@ public final class PixelMCWelcome {
 
         MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, scheduler));
         MinecraftForge.EVENT_BUS.register(new PixelMCWelcomeCommands(configManager, statsStore, placeholderResolver, textParser));
+        MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, textParser));
 
         configManager.loadOrCreate();
         LOGGER.info("PixelMC Welcome loaded.");

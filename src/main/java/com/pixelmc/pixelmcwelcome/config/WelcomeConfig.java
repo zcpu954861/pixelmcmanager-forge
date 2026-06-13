@@ -11,6 +11,7 @@ public final class WelcomeConfig {
     public String timeFormat = "HH:mm:ss";
     public List<String> firstJoinMessages = new ArrayList<>();
     public List<String> returningMessages = new ArrayList<>();
+    public int statsAutoSaveSeconds = 30;
     public boolean saveOnLogout = true;
     public boolean saveOnServerStop = true;
     public boolean debugLogging = false;
@@ -45,6 +46,9 @@ public final class WelcomeConfig {
         }
         if (returningMessages == null) {
             returningMessages = new ArrayList<>();
+        }
+        if (statsAutoSaveSeconds < 5 || statsAutoSaveSeconds > 600) {
+            statsAutoSaveSeconds = 30;
         }
     }
 }

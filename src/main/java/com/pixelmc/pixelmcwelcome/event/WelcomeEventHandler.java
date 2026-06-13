@@ -1,6 +1,5 @@
 package com.pixelmc.pixelmcwelcome.event;
 
-import com.pixelmc.pixelmcwelcome.config.WelcomeConfig;
 import com.pixelmc.pixelmcwelcome.config.WelcomeConfigManager;
 import com.pixelmc.pixelmcwelcome.stats.PlayerLoginSnapshot;
 import com.pixelmc.pixelmcwelcome.stats.PlayerStatsStore;
@@ -15,6 +14,7 @@ public final class WelcomeEventHandler {
     private final WelcomeConfigManager configManager;
     private final PlayerStatsStore statsStore;
     private final DelayedMessageScheduler scheduler;
+    private long lastStatsCheckpointMillis = 0L;
 
     public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, DelayedMessageScheduler scheduler) {
         this.configManager = configManager;
@@ -26,6 +26,7 @@ public final class WelcomeEventHandler {
     public void onServerStarted(ServerStartedEvent event) {
         configManager.loadOrCreate();
         statsStore.load(event.getServer());
+        lastStatsCheckpointMillis = System.currentTimeMillis();
     }
 
     @SubscribeEvent
@@ -37,6 +38,7 @@ public final class WelcomeEventHandler {
         long nowMillis = System.currentTimeMillis();
         statsStore.ensureLoaded(player.server);
         PlayerLoginSnapshot snapshot = statsStore.recordLogin(player, nowMillis);
+        statsStore.save();
         scheduler.schedule(player, snapshot.firstJoin(), snapshot.previousLastJoinEpochMillis());
     }
 
@@ -48,22 +50,27 @@ public final class WelcomeEventHandler {
 
         scheduler.cancel(player.getUUID());
         statsStore.recordLogout(player, System.currentTimeMillis());
-        WelcomeConfig config = configManager.getConfig();
-        if (config.saveOnLogout) {
-            statsStore.save();
-        }
+        statsStore.save();
     }
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         scheduler.onServerTick(event);
+        if (event.phase != TickEvent.Phase.END || !statsStore.hasOnlineSessions()) {
+            return;
+        }
+
+        long nowMillis = System.currentTimeMillis();
+        long intervalMillis = configManager.getConfig().statsAutoSaveSeconds * 1_000L;
+        if (lastStatsCheckpointMillis <= 0L || nowMillis - lastStatsCheckpointMillis >= intervalMillis) {
+            statsStore.checkpointOnlinePlayers(event.getServer(), nowMillis, true);
+            lastStatsCheckpointMillis = nowMillis;
+        }
     }
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         statsStore.settleAll(System.currentTimeMillis());
-        if (configManager.getConfig().saveOnServerStop) {
-            statsStore.save();
-        }
+        statsStore.save();
     }
 }
