@@ -12,8 +12,6 @@ public final class WelcomeConfig {
     public List<String> firstJoinMessages = new ArrayList<>();
     public List<String> returningMessages = new ArrayList<>();
     public int statsAutoSaveSeconds = 30;
-    public boolean saveOnLogout = true;
-    public boolean saveOnServerStop = true;
     public boolean debugLogging = false;
 
     public static WelcomeConfig defaults() {

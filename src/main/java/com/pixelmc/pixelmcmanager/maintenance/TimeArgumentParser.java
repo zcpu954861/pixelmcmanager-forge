@@ -30,12 +30,17 @@ public final class TimeArgumentParser {
             return Result.failure(USAGE);
         }
 
-        Duration duration = switch (matcher.group(2).toLowerCase(Locale.ROOT)) {
-            case "s" -> Duration.ofSeconds(amount);
-            case "m" -> Duration.ofMinutes(amount);
-            case "h" -> Duration.ofHours(amount);
-            default -> null;
-        };
+        Duration duration;
+        try {
+            duration = switch (matcher.group(2).toLowerCase(Locale.ROOT)) {
+                case "s" -> Duration.ofSeconds(amount);
+                case "m" -> Duration.ofMinutes(amount);
+                case "h" -> Duration.ofHours(amount);
+                default -> null;
+            };
+        } catch (ArithmeticException exception) {
+            return Result.failure("计划停服时间最大为 24h。");
+        }
         if (duration == null || duration.isZero() || duration.isNegative()) {
             return Result.failure(USAGE);
         }

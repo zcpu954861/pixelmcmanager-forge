@@ -42,7 +42,9 @@ public final class WelcomeEventHandler {
         }
 
         long nowMillis = System.currentTimeMillis();
-        statsStore.ensureLoaded(player.server);
+        if (!statsStore.ensureLoaded(player.server)) {
+            return;
+        }
         PlayerLoginSnapshot snapshot = statsStore.recordLogin(player, nowMillis);
         statsStore.save();
         scheduler.schedule(player, snapshot.firstJoin(), snapshot.previousLastJoinEpochMillis());
