@@ -24,3 +24,15 @@
 22. Simulate an abnormal stop and restart, then confirm the whole login session was not lost; at most the time since the previous checkpoint should be missing.
 23. Run the `/pixelmcmanager` query commands from the server console and confirm they do not require a player context.
 24. Confirm `/pixelmcwelcome` is no longer registered.
+25. Run `/pixelmcmanager stopserver abc` and confirm it reports the valid time format.
+26. Run `/pixelmcmanager stopserver 0s` and confirm it is rejected.
+27. Run `/pixelmcmanager stopserver 10s` and confirm the 10 to 1 second countdown appears in both chat and subtitle with matching text.
+28. At the scheduled maintenance time, confirm players are kicked with two colored lines: `服务器开始执行停机维护!` and `详细信息见QQ群:768322731`.
+29. During the 15 seconds after kick, try to reconnect and confirm the join is rejected with two colored lines: `服务器即将停机维护!` and `详细信息见QQ群:768322731`.
+30. Confirm the server safely stops 15 seconds after players are kicked.
+31. Run `/pixelmcmanager stopserver 1m` and confirm the 1 minute chat reminder appears, then the final 10 second countdown appears.
+32. Run `/pixelmcmanager stopserver 12m` and confirm it skips the 15 minute reminder but sends 10/5/4/3/2/1 minute reminders.
+33. Run `/pixelmcmanager stopserver 16m` and confirm it sends 15/10/5/4/3/2/1 minute reminders.
+34. Schedule a stop, then run a new `/pixelmcmanager stopserver <time>` before maintenance starts and confirm the old plan is overwritten.
+35. After maintenance starts, run `/pixelmcmanager stopserver <time>` again from console and confirm it is rejected.
+36. Confirm a client without PixelMC Manager can still join normally when no maintenance is active.

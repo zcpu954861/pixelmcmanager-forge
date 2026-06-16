@@ -55,12 +55,21 @@ Legacy files are not deleted. If both old and new files exist, the new `pixelmcm
 - `/pixelmcmanager logincount <player>`
 - `/pixelmcmanager logintime`
 - `/pixelmcmanager logintime <player>`
+- `/pixelmcmanager stopserver <time>`
 
 All commands require OP level 2. `reload` and all `/pixelmcmanager` queries can be run from console. `preview` requires a player.
 
 `logincount` shows all recorded players sorted by login count descending. `logintime` shows all recorded players sorted by total online time descending. The `<player>` argument supports tab completion from all recorded player names, including offline historical players.
 
 The old `/pixelmcwelcome` command has been removed. Use `/pixelmcmanager`.
+
+`stopserver <time>` requires OP level 4. `<time>` means how long until all players are kicked and the server enters maintenance. The real server stop happens 15 seconds after maintenance starts. Supported formats are `s`, `m`, and `h`, for example:
+
+- `/pixelmcmanager stopserver 30s`
+- `/pixelmcmanager stopserver 10m`
+- `/pixelmcmanager stopserver 1h`
+
+Before maintenance starts, online players receive chat reminders at 15/10/5/4/3/2/1 minutes when applicable. During the final 10 seconds, players receive matching chat and subtitle countdown messages. At maintenance time, all online players are kicked with a custom two-line colored message, new joins are rejected with a custom two-line colored message, and the server safely runs `stop` 15 seconds later.
 
 ## Placeholders
 

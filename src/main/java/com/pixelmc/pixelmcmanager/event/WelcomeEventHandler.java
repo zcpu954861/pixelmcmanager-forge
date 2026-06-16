@@ -1,6 +1,7 @@
 package com.pixelmc.pixelmcmanager.event;
 
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
 import com.pixelmc.pixelmcmanager.stats.PlayerLoginSnapshot;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,12 +15,14 @@ public final class WelcomeEventHandler {
     private final WelcomeConfigManager configManager;
     private final PlayerStatsStore statsStore;
     private final DelayedMessageScheduler scheduler;
+    private final StopServerScheduler stopServerScheduler;
     private long lastStatsCheckpointMillis = 0L;
 
-    public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, DelayedMessageScheduler scheduler) {
+    public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, DelayedMessageScheduler scheduler, StopServerScheduler stopServerScheduler) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.scheduler = scheduler;
+        this.stopServerScheduler = stopServerScheduler;
     }
 
     @SubscribeEvent
@@ -32,6 +35,9 @@ public final class WelcomeEventHandler {
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        if (stopServerScheduler.rejectMaintenanceJoin(player)) {
             return;
         }
 
@@ -55,6 +61,7 @@ public final class WelcomeEventHandler {
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
+        stopServerScheduler.onServerTick(event);
         scheduler.onServerTick(event);
         if (event.phase != TickEvent.Phase.END || !statsStore.hasOnlineSessions()) {
             return;

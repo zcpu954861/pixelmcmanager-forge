@@ -5,6 +5,8 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfig;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
+import com.pixelmc.pixelmcmanager.maintenance.TimeArgumentParser;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderContext;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderResolver;
 import com.pixelmc.pixelmcmanager.stats.PlayerStats;
@@ -29,12 +31,14 @@ public final class PixelMCManagerCommands {
     private final PlayerStatsStore statsStore;
     private final PlaceholderResolver placeholderResolver;
     private final TextTemplateParser textParser;
+    private final StopServerScheduler stopServerScheduler;
 
-    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, PlaceholderResolver placeholderResolver, TextTemplateParser textParser) {
+    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.placeholderResolver = placeholderResolver;
         this.textParser = textParser;
+        this.stopServerScheduler = stopServerScheduler;
     }
 
     @SubscribeEvent
@@ -70,7 +74,11 @@ public final class PixelMCManagerCommands {
                                     statsStore.ensureLoaded(context.getSource().getServer());
                                     return SharedSuggestionProvider.suggest(statsStore.listKnownPlayerNames(), builder);
                                 })
-                                .executes(context -> showLoginTime(context.getSource(), StringArgumentType.getString(context, "player")))));
+                                .executes(context -> showLoginTime(context.getSource(), StringArgumentType.getString(context, "player")))))
+                .then(Commands.literal("stopserver")
+                        .requires(source -> source.hasPermission(4))
+                        .then(Commands.argument("time", StringArgumentType.word())
+                                .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))));
     }
 
     private int help(CommandSourceStack source) {
@@ -79,6 +87,24 @@ public final class PixelMCManagerCommands {
         send(source, "&b/pixelmcmanager preview [first|returning]");
         send(source, "&b/pixelmcmanager logincount [player]");
         send(source, "&d/pixelmcmanager logintime [player]");
+        send(source, "&c/pixelmcmanager stopserver <time>");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int stopServer(CommandSourceStack source, String input) {
+        TimeArgumentParser.Result parsed = TimeArgumentParser.parse(input);
+        if (!parsed.success()) {
+            source.sendFailure(Component.literal(parsed.errorMessage()));
+            return 0;
+        }
+
+        StopServerScheduler.ScheduleResult result = stopServerScheduler.schedule(source.getServer(), parsed.duration());
+        if (!result.success()) {
+            source.sendFailure(Component.literal(result.message()));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal(result.message()), false);
         return Command.SINGLE_SUCCESS;
     }
 
