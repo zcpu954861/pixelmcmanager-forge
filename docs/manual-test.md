@@ -34,5 +34,14 @@
 32. Run `/pixelmcmanager stopserver 12m` and confirm it skips the 15 minute reminder but sends 10/5/4/3/2/1 minute reminders.
 33. Run `/pixelmcmanager stopserver 16m` and confirm it sends 15/10/5/4/3/2/1 minute reminders.
 34. Schedule a stop, then run a new `/pixelmcmanager stopserver <time>` before maintenance starts and confirm the old plan is overwritten.
-35. After maintenance starts, run `/pixelmcmanager stopserver <time>` again from console and confirm it is rejected.
+35. After maintenance starts, run `/pixelmcmanager stopserver <time>` again from console and confirm it overwrites the old maintenance flow with a new plan.
 36. Confirm a client without PixelMC Manager can still join normally when no maintenance is active.
+37. Run `/pixelmcmanager stopserver 1m`, then `/pixelmcmanager stopserver cancel`, and confirm no countdown, kick, or stop happens.
+38. Run `/pixelmcmanager stopserver 10s`, wait until players are kicked, then run `/pixelmcmanager stopserver cancel` from console before the final 15 second stop and confirm the server stays online.
+39. After canceling during maintenance, confirm players can join again.
+40. Run `/pixelmcmanager stopserver cancel` with no active plan and confirm it says `当前没有正在进行的服务器停机计划。`.
+41. Run `/pixelmcmanager stopserver 10m`, then `/pixelmcmanager stopserver 1m`, and confirm the old plan is overwritten.
+42. Confirm the overwrite feedback contains `已终止当前存在的服务器终止进程`, the new friendly duration, and the new system time.
+43. Confirm reminders, countdown, kick, and final stop follow only the second plan after overwrite.
+44. Type `/pixelmcmanager stopserver ` and confirm Tab suggestions include `cancel`.
+45. Confirm `/pixelmcmanager stopserver 10s`, `1m`, and `1h` still work after adding `cancel`.

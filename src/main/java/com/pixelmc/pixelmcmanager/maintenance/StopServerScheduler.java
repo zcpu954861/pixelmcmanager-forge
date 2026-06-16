@@ -37,18 +37,25 @@ public final class StopServerScheduler {
 
     public synchronized ScheduleResult schedule(MinecraftServer server, Duration delay) {
         long nowMillis = System.currentTimeMillis();
-        if (plan != null && plan.maintenanceActive()) {
-            return ScheduleResult.failure("服务器已经进入停机维护流程，即将停止。");
-        }
-
         boolean replaced = plan != null;
         plan = new StopServerPlan(nowMillis, delay);
         stopCommandIssued = false;
         sendDueWarnings(server, nowMillis);
 
-        String prefix = replaced ? "已覆盖旧计划，" : "";
         String kickTime = SYSTEM_TIME_FORMAT.withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(plan.kickTimeMillis()));
-        return ScheduleResult.success(prefix + "已成功预定服务器在 " + formatDelay(delay) + " 后停机,对应系统时间 " + kickTime);
+        if (replaced) {
+            return ScheduleResult.success("已终止当前存在的服务器终止进程,并成功预定服务器在 " + formatDelay(delay) + " 后停机,对应系统时间 " + kickTime);
+        }
+        return ScheduleResult.success("已成功预定服务器在 " + formatDelay(delay) + " 后停机,对应系统时间 " + kickTime);
+    }
+
+    public synchronized ScheduleResult cancel() {
+        if (plan == null) {
+            return ScheduleResult.failure("当前没有正在进行的服务器停机计划。");
+        }
+        plan = null;
+        stopCommandIssued = false;
+        return ScheduleResult.success("已取消当前预定的服务器停机计划。");
     }
 
     public synchronized boolean rejectMaintenanceJoin(ServerPlayer player) {

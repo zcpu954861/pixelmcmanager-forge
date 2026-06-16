@@ -77,7 +77,10 @@ public final class PixelMCManagerCommands {
                                 .executes(context -> showLoginTime(context.getSource(), StringArgumentType.getString(context, "player")))))
                 .then(Commands.literal("stopserver")
                         .requires(source -> source.hasPermission(4))
+                        .then(Commands.literal("cancel")
+                                .executes(context -> cancelStopServer(context.getSource())))
                         .then(Commands.argument("time", StringArgumentType.word())
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(List.of("10s", "30s", "1m", "5m", "10m", "1h"), builder))
                                 .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))));
     }
 
@@ -87,24 +90,35 @@ public final class PixelMCManagerCommands {
         send(source, "&b/pixelmcmanager preview [first|returning]");
         send(source, "&b/pixelmcmanager logincount [player]");
         send(source, "&d/pixelmcmanager logintime [player]");
-        send(source, "&c/pixelmcmanager stopserver <time>");
+        send(source, "&c/pixelmcmanager stopserver <time|cancel>");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int cancelStopServer(CommandSourceStack source) {
+        StopServerScheduler.ScheduleResult result = stopServerScheduler.cancel();
+        if (!result.success()) {
+            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            return 0;
+        }
+
+        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 
     private int stopServer(CommandSourceStack source, String input) {
         TimeArgumentParser.Result parsed = TimeArgumentParser.parse(input);
         if (!parsed.success()) {
-            source.sendFailure(Component.literal(parsed.errorMessage()));
+            source.sendFailure(textParser.parse("&c" + parsed.errorMessage(), configManager.getConfig()));
             return 0;
         }
 
         StopServerScheduler.ScheduleResult result = stopServerScheduler.schedule(source.getServer(), parsed.duration());
         if (!result.success()) {
-            source.sendFailure(Component.literal(result.message()));
+            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
 
-        source.sendSuccess(() -> Component.literal(result.message()), false);
+        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 

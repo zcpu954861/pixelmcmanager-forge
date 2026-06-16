@@ -56,6 +56,7 @@ Legacy files are not deleted. If both old and new files exist, the new `pixelmcm
 - `/pixelmcmanager logintime`
 - `/pixelmcmanager logintime <player>`
 - `/pixelmcmanager stopserver <time>`
+- `/pixelmcmanager stopserver cancel`
 
 All commands require OP level 2. `reload` and all `/pixelmcmanager` queries can be run from console. `preview` requires a player.
 
@@ -70,6 +71,8 @@ The old `/pixelmcwelcome` command has been removed. Use `/pixelmcmanager`.
 - `/pixelmcmanager stopserver 1h`
 
 Before maintenance starts, online players receive chat reminders at 15/10/5/4/3/2/1 minutes when applicable. During the final 10 seconds, players receive matching chat and subtitle countdown messages. At maintenance time, all online players are kicked with a custom two-line colored message, new joins are rejected with a custom two-line colored message, and the server safely runs `stop` 15 seconds later.
+
+`/pixelmcmanager stopserver cancel` cancels a pending stop plan. If maintenance has already started but the final `stop` has not run yet, `cancel` cancels that final stop and allows players to rejoin. Running `/pixelmcmanager stopserver <time>` while a plan or maintenance flow already exists replaces the old flow and starts timing again from the new command.
 
 ## Placeholders
 
