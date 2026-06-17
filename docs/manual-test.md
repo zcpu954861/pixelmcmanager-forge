@@ -1,7 +1,7 @@
 # PixelMC Manager Manual Test
 
 1. Build the jar with `.\gradlew.bat clean build`.
-2. Copy `build/libs/pixelmcmanager-0.1.0.jar` into a Forge 1.20.1 server `mods/` directory.
+2. Copy `build/libs/pixelmcmanager-forge-1.20.1-0.2.2.jar` into a Forge 1.20.1 server `mods/` directory.
 3. Join the server from a client that does not install PixelMC Manager.
 4. On first join, confirm the `firstJoinMessages` lines are sent only to the joining player.
 5. Leave and join again, then confirm `returningMessages` and `{join_count}` are correct.
@@ -45,3 +45,13 @@
 43. Confirm reminders, countdown, kick, and final stop follow only the second plan after overwrite.
 44. Type `/pixelmcmanager stopserver ` and confirm Tab suggestions include `cancel`.
 45. Confirm `/pixelmcmanager stopserver 10s`, `1m`, and `1h` still work after adding `cancel`.
+46. With no active plan, run `/pixelmcmanager stopserver status` and confirm it says `当前没有正在进行的服务器停机计划。`.
+47. Run `/pixelmcmanager stopserver 1m`, then `/pixelmcmanager stopserver status`, and confirm it shows `等待维护开始`.
+48. Confirm the status maintenance start time is the scheduled kickTime.
+49. Confirm the status final stop time is kickTime plus 15 seconds.
+50. Confirm the status remaining time decreases with real wall-clock time.
+51. Run `/pixelmcmanager stopserver cancel`, then `/pixelmcmanager stopserver status`, and confirm it shows no active plan.
+52. Run `/pixelmcmanager stopserver 10s`, wait until players are kicked but before final stop, then run `/pixelmcmanager stopserver status` from console and confirm it shows maintenance in progress.
+53. Type `/pixelmcmanager stopserver ` and confirm Tab suggestions include both `status` and `cancel`.
+54. Confirm the original `<time>` argument still accepts values such as `/pixelmcmanager stopserver 10s`.
+55. Confirm a client without PixelMC Manager can still join normally when no maintenance is active.

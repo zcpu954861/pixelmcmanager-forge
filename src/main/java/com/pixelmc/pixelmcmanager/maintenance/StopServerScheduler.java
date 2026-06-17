@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 public final class StopServerScheduler {
     private static final List<Integer> MINUTE_WARNINGS = List.of(15, 10, 5, 4, 3, 2, 1);
@@ -56,6 +57,13 @@ public final class StopServerScheduler {
         plan = null;
         stopCommandIssued = false;
         return ScheduleResult.success("已取消当前预定的服务器停机计划。");
+    }
+
+    public synchronized Optional<PlanSnapshot> getCurrentPlanSnapshot() {
+        if (plan == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new PlanSnapshot(plan.kickTimeMillis(), plan.stopTimeMillis(), plan.maintenanceActive()));
     }
 
     public synchronized boolean rejectMaintenanceJoin(ServerPlayer player) {
@@ -163,5 +171,8 @@ public final class StopServerScheduler {
         public static ScheduleResult failure(String message) {
             return new ScheduleResult(false, message);
         }
+    }
+
+    public record PlanSnapshot(long kickTimeMillis, long stopTimeMillis, boolean maintenanceActive) {
     }
 }

@@ -22,11 +22,17 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 public final class PixelMCManagerCommands {
+    private static final DateTimeFormatter STATUS_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+    private static final List<String> STOPSERVER_SUGGESTIONS = List.of("cancel", "status", "10s", "30s", "1m", "5m", "10m", "1h");
+
     private final WelcomeConfigManager configManager;
     private final PlayerStatsStore statsStore;
     private final PlaceholderResolver placeholderResolver;
@@ -83,8 +89,10 @@ public final class PixelMCManagerCommands {
                         .requires(source -> source.hasPermission(4))
                         .then(Commands.literal("cancel")
                                 .executes(context -> cancelStopServer(context.getSource())))
+                        .then(Commands.literal("status")
+                                .executes(context -> stopServerStatus(context.getSource())))
                         .then(Commands.argument("time", StringArgumentType.word())
-                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(List.of("10s", "30s", "1m", "5m", "10m", "1h"), builder))
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(STOPSERVER_SUGGESTIONS, builder))
                                 .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))));
     }
 
@@ -94,8 +102,44 @@ public final class PixelMCManagerCommands {
         send(source, "&b/pixelmcmanager preview [first|returning]");
         send(source, "&b/pixelmcmanager logincount [player]");
         send(source, "&d/pixelmcmanager logintime [player]");
-        send(source, "&c/pixelmcmanager stopserver <time|cancel>");
+        send(source, "&c/pixelmcmanager stopserver <time|cancel|status>");
         return Command.SINGLE_SUCCESS;
+    }
+
+    private int stopServerStatus(CommandSourceStack source) {
+        Optional<StopServerScheduler.PlanSnapshot> snapshot = stopServerScheduler.getCurrentPlanSnapshot();
+        if (snapshot.isEmpty()) {
+            send(source, "&a当前没有正在进行的服务器停机计划。");
+            return Command.SINGLE_SUCCESS;
+        }
+
+        StopServerScheduler.PlanSnapshot plan = snapshot.get();
+        long nowMillis = System.currentTimeMillis();
+        if (nowMillis >= plan.stopTimeMillis()) {
+            send(source, "&e服务器停机计划已到达最终停服时间，正在等待停止流程执行。");
+            sendStopServerTimes(source, plan);
+            send(source, "&f当前状态：&6等待停止流程执行");
+            return Command.SINGLE_SUCCESS;
+        }
+
+        if (plan.maintenanceActive()) {
+            send(source, "&e服务器已经进入停机维护流程。");
+            send(source, "&f距离真正停服：&c" + formatRemaining(plan.stopTimeMillis() - nowMillis));
+            sendStopServerTimes(source, plan);
+            send(source, "&f当前状态：&6维护中，正在等待服务器停止");
+            return Command.SINGLE_SUCCESS;
+        }
+
+        send(source, "&e当前存在服务器停机计划。");
+        send(source, "&f距离停机维护：&b" + formatRemaining(plan.kickTimeMillis() - nowMillis));
+        sendStopServerTimes(source, plan);
+        send(source, "&f当前状态：&6等待维护开始");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private void sendStopServerTimes(CommandSourceStack source, StopServerScheduler.PlanSnapshot plan) {
+        send(source, "&f维护开始时间：&a" + formatSystemTime(plan.kickTimeMillis()));
+        send(source, "&f真正停服时间：&c" + formatSystemTime(plan.stopTimeMillis()));
     }
 
     private int cancelStopServer(CommandSourceStack source) {
@@ -277,6 +321,24 @@ public final class PixelMCManagerCommands {
     private String formatDateTime(long epochMillis) {
         WelcomeConfig config = configManager.getConfig();
         return TimeFormatUtil.formatDateTime(epochMillis, config.timezone, config.dateFormat, config.timeFormat);
+    }
+
+    private static String formatSystemTime(long epochMillis) {
+        return STATUS_TIME_FORMAT.format(Instant.ofEpochMilli(epochMillis));
+    }
+
+    private static String formatRemaining(long remainingMillis) {
+        long seconds = Math.max(0L, (remainingMillis + 999L) / 1_000L);
+        long hours = seconds / 3_600L;
+        long minutes = (seconds % 3_600L) / 60L;
+        long remainingSeconds = seconds % 60L;
+        if (hours > 0L) {
+            return hours + "小时" + String.format("%02d", minutes) + "分钟";
+        }
+        if (minutes > 0L) {
+            return minutes + "分钟" + String.format("%02d", remainingSeconds) + "秒";
+        }
+        return seconds + "秒";
     }
 
     private static String safeName(PlayerStats stats) {
