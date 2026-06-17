@@ -2,7 +2,10 @@ package com.pixelmc.pixelmcmanager.command;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.pixelmc.pixelmcmanager.audit.AuditEntry;
+import com.pixelmc.pixelmcmanager.audit.AuditService;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfig;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
 import com.pixelmc.pixelmcmanager.maintenance.MaintenanceScheduler;
@@ -34,17 +37,22 @@ public final class PixelMCManagerCommands {
     private static final DateTimeFormatter STATUS_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
     private static final List<String> STOPSERVER_SUGGESTIONS = List.of("cancel", "status", "10s", "30s", "1m", "5m", "10m", "1h");
     private static final List<String> MAINTENANCE_SUGGESTIONS = List.of("now", "off", "status", "10s", "30s", "1m", "5m", "10m", "1h");
+    private static final List<String> AUDIT_COUNT_SUGGESTIONS = List.of("10", "20", "30", "50");
+    private static final int DEFAULT_AUDIT_COUNT = 10;
+    private static final int MAX_AUDIT_COUNT = 50;
 
     private final WelcomeConfigManager configManager;
     private final PlayerStatsStore statsStore;
+    private final AuditService auditService;
     private final PlaceholderResolver placeholderResolver;
     private final TextTemplateParser textParser;
     private final StopServerScheduler stopServerScheduler;
     private final MaintenanceScheduler maintenanceScheduler;
 
-    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler) {
+    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler) {
         this.configManager = configManager;
         this.statsStore = statsStore;
+        this.auditService = auditService;
         this.placeholderResolver = placeholderResolver;
         this.textParser = textParser;
         this.stopServerScheduler = stopServerScheduler;
@@ -108,7 +116,15 @@ public final class PixelMCManagerCommands {
                                 .executes(context -> maintenanceStatus(context.getSource())))
                         .then(Commands.argument("time", StringArgumentType.word())
                                 .suggests((context, builder) -> SharedSuggestionProvider.suggest(MAINTENANCE_SUGGESTIONS, builder))
-                                .executes(context -> scheduleMaintenance(context.getSource(), StringArgumentType.getString(context, "time")))));
+                                .executes(context -> scheduleMaintenance(context.getSource(), StringArgumentType.getString(context, "time")))))
+                .then(Commands.literal("audit")
+                        .requires(source -> source.hasPermission(4))
+                        .executes(context -> showAudit(context.getSource(), DEFAULT_AUDIT_COUNT))
+                        .then(Commands.literal("last")
+                                .executes(context -> showAudit(context.getSource(), DEFAULT_AUDIT_COUNT))
+                                .then(Commands.argument("count", IntegerArgumentType.integer())
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(AUDIT_COUNT_SUGGESTIONS, builder))
+                                        .executes(context -> showAudit(context.getSource(), IntegerArgumentType.getInteger(context, "count"))))));
     }
 
     private int help(CommandSourceStack source) {
@@ -119,6 +135,26 @@ public final class PixelMCManagerCommands {
         send(source, "&d/pixelmcmanager logintime [player]");
         send(source, "&c/pixelmcmanager stopserver <time|cancel|status>");
         send(source, "&6/pixelmcmanager maintenance <time|now|off|status>");
+        send(source, "&9/pixelmcmanager audit [last] [count]");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int showAudit(CommandSourceStack source, int count) {
+        if (count < 1 || count > MAX_AUDIT_COUNT) {
+            source.sendFailure(textParser.parse("&c审计查询数量必须在 1 到 50 之间。", configManager.getConfig()));
+            return 0;
+        }
+
+        List<AuditEntry> entries = auditService.getRecent(count);
+        if (entries.isEmpty()) {
+            send(source, "&a当前没有管理操作记录。");
+            return Command.SINGLE_SUCCESS;
+        }
+
+        send(source, "&9PixelMC 管理操作记录 最近 " + count + " 条");
+        for (AuditEntry entry : entries) {
+            send(source, "&7[" + formatSystemTime(entry.time) + "] &e" + safeAuditText(entry.sourceName) + " &f执行 &b" + formatAuditAction(entry) + " &a成功");
+        }
         return Command.SINGLE_SUCCESS;
     }
 
@@ -129,21 +165,27 @@ public final class PixelMCManagerCommands {
             return 0;
         }
 
+        boolean replaced = maintenanceScheduler.getStatusSnapshot().state() == MaintenanceScheduler.State.SCHEDULED;
         MaintenanceScheduler.Result result = maintenanceScheduler.schedule(source.getServer(), parsed.duration());
         if (!result.success()) {
             source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
+        MaintenanceScheduler.StatusSnapshot snapshot = maintenanceScheduler.getStatusSnapshot();
+        auditService.record(source, replaced ? "maintenance_override" : "maintenance_schedule", input, "maintenanceStartTime=" + formatSystemTime(snapshot.maintenanceStartTimeMillis()));
         source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
 
     private int startMaintenanceNow(CommandSourceStack source) {
+        boolean replaced = maintenanceScheduler.getStatusSnapshot().state() == MaintenanceScheduler.State.SCHEDULED;
         MaintenanceScheduler.Result result = maintenanceScheduler.startNow(source.getServer());
         if (!result.success()) {
             source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
+        MaintenanceScheduler.StatusSnapshot snapshot = maintenanceScheduler.getStatusSnapshot();
+        auditService.record(source, replaced ? "maintenance_now_override" : "maintenance_now", "", "maintenanceStartedAt=" + formatSystemTime(snapshot.maintenanceStartedAtMillis()));
         source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
@@ -154,6 +196,7 @@ public final class PixelMCManagerCommands {
             source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
+        auditService.record(source, "maintenance_off", "", result.message());
         source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
@@ -230,6 +273,7 @@ public final class PixelMCManagerCommands {
             return 0;
         }
 
+        auditService.record(source, "stopserver_cancel", "", result.message());
         source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
@@ -241,12 +285,16 @@ public final class PixelMCManagerCommands {
             return 0;
         }
 
+        boolean replaced = stopServerScheduler.getCurrentPlanSnapshot().isPresent();
         StopServerScheduler.ScheduleResult result = stopServerScheduler.schedule(source.getServer(), parsed.duration());
         if (!result.success()) {
             source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
             return 0;
         }
 
+        Optional<StopServerScheduler.PlanSnapshot> snapshot = stopServerScheduler.getCurrentPlanSnapshot();
+        String detail = snapshot.map(plan -> "kickTime=" + formatSystemTime(plan.kickTimeMillis())).orElse(result.message());
+        auditService.record(source, replaced ? "stopserver_override" : "stopserver", input, detail);
         source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
         return Command.SINGLE_SUCCESS;
     }
@@ -254,6 +302,7 @@ public final class PixelMCManagerCommands {
     private int reload(CommandSourceStack source) {
         WelcomeConfigManager.LoadResult result = configManager.loadOrCreate();
         if (result.success()) {
+            auditService.record(source, "reload", "", "configuration reloaded");
             source.sendSuccess(() -> Component.literal("PixelMC Manager 配置已重新加载。"), false);
             return Command.SINGLE_SUCCESS;
         }
@@ -420,6 +469,28 @@ public final class PixelMCManagerCommands {
             return minutes + "分钟" + String.format("%02d", remainingSeconds) + "秒";
         }
         return seconds + "秒";
+    }
+
+    private static String formatAuditAction(AuditEntry entry) {
+        String action = switch (entry.action) {
+            case "stopserver" -> "stopserver " + entry.args;
+            case "stopserver_cancel" -> "stopserver cancel";
+            case "stopserver_override" -> "stopserver " + entry.args + " 覆盖旧计划";
+            case "maintenance_schedule" -> "maintenance " + entry.args;
+            case "maintenance_now" -> "maintenance now";
+            case "maintenance_off" -> "maintenance off";
+            case "maintenance_override" -> "maintenance " + entry.args + " 覆盖旧计划";
+            case "maintenance_now_override" -> "maintenance now 覆盖旧计划";
+            default -> entry.action;
+        };
+        return safeAuditText(action);
+    }
+
+    private static String safeAuditText(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.replace("&", "＆").replace("\n", " ");
     }
 
     private static String safeName(PlayerStats stats) {

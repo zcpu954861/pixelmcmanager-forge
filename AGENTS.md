@@ -10,6 +10,7 @@ Hard rules:
 - Keep player stats in the active world save root under pixelmcmanager/player_stats.json.
 - Keep total online time based on real wall-clock milliseconds, not ticks.
 - Keep stopserver and maintenance states independent; stopserver join rejection has priority.
+- Store audit history in the active world save root under pixelmcmanager/audit.jsonl.
 - Prefer small, reviewable changes.
 - Always run a Gradle build before claiming success.
 

@@ -69,3 +69,17 @@
 67. Type `/pixelmcmanager maintenance ` and confirm Tab suggestions include `now`, `off`, `status`, and common time values.
 68. Confirm `stopserver cancel` does not disable active maintenance, and `maintenance off` does not cancel a stopserver plan.
 69. Confirm a client without PixelMC Manager can still join normally when maintenance is inactive.
+70. Run a successful `/pixelmcmanager reload`, then `/pixelmcmanager audit`, and confirm a reload record appears.
+71. Run `/pixelmcmanager stopserver 1m`, then confirm audit shows a stopserver record.
+72. Run `/pixelmcmanager stopserver cancel`, then confirm audit shows a stopserver cancel record.
+73. Run `/pixelmcmanager maintenance 1m`, then confirm audit shows a maintenance record.
+74. Run `/pixelmcmanager maintenance now`, then confirm audit shows a maintenance now record.
+75. Run `/pixelmcmanager maintenance off`, then confirm audit shows a maintenance off record.
+76. Confirm `/pixelmcmanager audit` shows the recent 10 records.
+77. Confirm `/pixelmcmanager audit last` shows the recent 10 records.
+78. Confirm `/pixelmcmanager audit last 20` shows up to 20 recent records.
+79. Confirm `/pixelmcmanager audit last 0` and `/pixelmcmanager audit last 51` report the 1 to 50 range error.
+80. Confirm status, logincount, logintime, preview, and audit query commands do not create audit records.
+81. Confirm audit records are stored at `<world-save-root>/pixelmcmanager/audit.jsonl`.
+82. Restart the server and confirm recent audit records can still be queried.
+83. Confirm a client without PixelMC Manager can still join normally when maintenance is inactive.

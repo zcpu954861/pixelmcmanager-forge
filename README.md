@@ -62,6 +62,9 @@ Legacy files are not deleted. If both old and new files exist, the new `pixelmcm
 - `/pixelmcmanager maintenance now`
 - `/pixelmcmanager maintenance off`
 - `/pixelmcmanager maintenance status`
+- `/pixelmcmanager audit`
+- `/pixelmcmanager audit last`
+- `/pixelmcmanager audit last <count>`
 
 All commands require OP level 2. `reload` and all `/pixelmcmanager` queries can be run from console. `preview` requires a player.
 
@@ -84,6 +87,8 @@ Before maintenance starts, online players receive chat reminders at 15/10/5/4/3/
 `/pixelmcmanager maintenance <time>` schedules maintenance mode without stopping the server. At the scheduled time all online players are kicked, new joins are rejected with a custom two-line maintenance message, and the server keeps running until `/pixelmcmanager maintenance off`.
 
 `/pixelmcmanager maintenance now` enters maintenance immediately. `/pixelmcmanager maintenance off` cancels a pending maintenance plan or disables active maintenance. `/pixelmcmanager maintenance status` shows the current maintenance plan or active maintenance state. Maintenance plans and active maintenance state are in memory only and are not persisted across server restarts.
+
+`/pixelmcmanager audit` and `/pixelmcmanager audit last [count]` show recent successful management operations in-game. PixelMC Manager records successful `reload`, `stopserver`, `stopserver cancel`, `maintenance <time>`, `maintenance now`, and `maintenance off` operations. Query and preview commands are not recorded. Audit records are stored in the current world save root at `<world-save-root>/pixelmcmanager/audit.jsonl` and a recent in-memory cache is loaded on server start for fast queries.
 
 ## Placeholders
 
