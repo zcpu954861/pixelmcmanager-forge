@@ -11,3 +11,19 @@ Hard rules:
 - Keep total online time based on real wall-clock milliseconds, not ticks.
 - Prefer small, reviewable changes.
 - Always run a Gradle build before claiming success.
+
+GitHub Release title format:
+- Forge: PixelMC Manager Forge <mod_version>
+- Fabric: PixelMC Manager Fabric <mod_version>
+
+Examples:
+- PixelMC Manager Forge 0.2.2
+- PixelMC Manager Fabric 0.2.2
+
+Do not include Minecraft version or a leading "v" in the release title.
+Tags may use the v-prefix, such as v0.2.2.
+Jar filenames may include loader, Minecraft version, and mod version.
+
+Release notes must include a "兼容版本与附件" section.
+List each supported Minecraft version and the exact jar asset name there.
+Do not use a single "适用环境" section as the only compatibility description, because the same mod version may later include multiple Minecraft versions.
