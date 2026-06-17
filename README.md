@@ -58,6 +58,10 @@ Legacy files are not deleted. If both old and new files exist, the new `pixelmcm
 - `/pixelmcmanager stopserver <time>`
 - `/pixelmcmanager stopserver cancel`
 - `/pixelmcmanager stopserver status`
+- `/pixelmcmanager maintenance <time>`
+- `/pixelmcmanager maintenance now`
+- `/pixelmcmanager maintenance off`
+- `/pixelmcmanager maintenance status`
 
 All commands require OP level 2. `reload` and all `/pixelmcmanager` queries can be run from console. `preview` requires a player.
 
@@ -76,6 +80,10 @@ Before maintenance starts, online players receive chat reminders at 15/10/5/4/3/
 `/pixelmcmanager stopserver cancel` cancels a pending stop plan. If maintenance has already started but the final `stop` has not run yet, `cancel` cancels that final stop and allows players to rejoin. Running `/pixelmcmanager stopserver <time>` while a plan or maintenance flow already exists replaces the old flow and starts timing again from the new command.
 
 `/pixelmcmanager stopserver status` displays the current stop plan without changing it. It shows whether the server is waiting for maintenance, already in the 15-second maintenance window, or past the final stop time, plus the remaining real wall-clock time, maintenance start time, and final stop time.
+
+`/pixelmcmanager maintenance <time>` schedules maintenance mode without stopping the server. At the scheduled time all online players are kicked, new joins are rejected with a custom two-line maintenance message, and the server keeps running until `/pixelmcmanager maintenance off`.
+
+`/pixelmcmanager maintenance now` enters maintenance immediately. `/pixelmcmanager maintenance off` cancels a pending maintenance plan or disables active maintenance. `/pixelmcmanager maintenance status` shows the current maintenance plan or active maintenance state. Maintenance plans and active maintenance state are in memory only and are not persisted across server restarts.
 
 ## Placeholders
 

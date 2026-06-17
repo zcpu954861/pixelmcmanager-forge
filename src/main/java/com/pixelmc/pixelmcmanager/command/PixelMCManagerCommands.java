@@ -5,6 +5,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfig;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.maintenance.MaintenanceScheduler;
 import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
 import com.pixelmc.pixelmcmanager.maintenance.TimeArgumentParser;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderContext;
@@ -32,19 +33,22 @@ import java.util.Optional;
 public final class PixelMCManagerCommands {
     private static final DateTimeFormatter STATUS_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
     private static final List<String> STOPSERVER_SUGGESTIONS = List.of("cancel", "status", "10s", "30s", "1m", "5m", "10m", "1h");
+    private static final List<String> MAINTENANCE_SUGGESTIONS = List.of("now", "off", "status", "10s", "30s", "1m", "5m", "10m", "1h");
 
     private final WelcomeConfigManager configManager;
     private final PlayerStatsStore statsStore;
     private final PlaceholderResolver placeholderResolver;
     private final TextTemplateParser textParser;
     private final StopServerScheduler stopServerScheduler;
+    private final MaintenanceScheduler maintenanceScheduler;
 
-    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler) {
+    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.placeholderResolver = placeholderResolver;
         this.textParser = textParser;
         this.stopServerScheduler = stopServerScheduler;
+        this.maintenanceScheduler = maintenanceScheduler;
     }
 
     @SubscribeEvent
@@ -93,7 +97,18 @@ public final class PixelMCManagerCommands {
                                 .executes(context -> stopServerStatus(context.getSource())))
                         .then(Commands.argument("time", StringArgumentType.word())
                                 .suggests((context, builder) -> SharedSuggestionProvider.suggest(STOPSERVER_SUGGESTIONS, builder))
-                                .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))));
+                                .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))))
+                .then(Commands.literal("maintenance")
+                        .requires(source -> source.hasPermission(4))
+                        .then(Commands.literal("now")
+                                .executes(context -> startMaintenanceNow(context.getSource())))
+                        .then(Commands.literal("off")
+                                .executes(context -> turnOffMaintenance(context.getSource())))
+                        .then(Commands.literal("status")
+                                .executes(context -> maintenanceStatus(context.getSource())))
+                        .then(Commands.argument("time", StringArgumentType.word())
+                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(MAINTENANCE_SUGGESTIONS, builder))
+                                .executes(context -> scheduleMaintenance(context.getSource(), StringArgumentType.getString(context, "time")))));
     }
 
     private int help(CommandSourceStack source) {
@@ -103,6 +118,72 @@ public final class PixelMCManagerCommands {
         send(source, "&b/pixelmcmanager logincount [player]");
         send(source, "&d/pixelmcmanager logintime [player]");
         send(source, "&c/pixelmcmanager stopserver <time|cancel|status>");
+        send(source, "&6/pixelmcmanager maintenance <time|now|off|status>");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int scheduleMaintenance(CommandSourceStack source, String input) {
+        TimeArgumentParser.Result parsed = TimeArgumentParser.parse(input);
+        if (!parsed.success()) {
+            source.sendFailure(textParser.parse("&c" + parsed.errorMessage(), configManager.getConfig()));
+            return 0;
+        }
+
+        MaintenanceScheduler.Result result = maintenanceScheduler.schedule(source.getServer(), parsed.duration());
+        if (!result.success()) {
+            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            return 0;
+        }
+        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int startMaintenanceNow(CommandSourceStack source) {
+        MaintenanceScheduler.Result result = maintenanceScheduler.startNow(source.getServer());
+        if (!result.success()) {
+            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            return 0;
+        }
+        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int turnOffMaintenance(CommandSourceStack source) {
+        MaintenanceScheduler.Result result = maintenanceScheduler.turnOff();
+        if (!result.success()) {
+            source.sendFailure(textParser.parse("&c" + result.message(), configManager.getConfig()));
+            return 0;
+        }
+        source.sendSuccess(() -> textParser.parse("&a" + result.message(), configManager.getConfig()), false);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int maintenanceStatus(CommandSourceStack source) {
+        MaintenanceScheduler.StatusSnapshot snapshot = maintenanceScheduler.getStatusSnapshot();
+        switch (snapshot.state()) {
+            case NONE -> send(source, "&a当前没有正在进行的服务器维护计划。");
+            case SCHEDULED -> {
+                long nowMillis = System.currentTimeMillis();
+                send(source, "&e当前存在服务器维护计划。");
+                send(source, "&f距离进入维护：&b" + formatRemaining(snapshot.maintenanceStartTimeMillis() - nowMillis));
+                send(source, "&f维护开始时间：&a" + formatSystemTime(snapshot.maintenanceStartTimeMillis()));
+                send(source, "&f当前状态：&6等待维护开始");
+            }
+            case ACTIVE -> {
+                send(source, "&e服务器当前处于维护状态。");
+                send(source, "&f维护开始时间：&a" + formatSystemTime(snapshot.maintenanceStartedAtMillis()));
+                send(source, "&f当前状态：&6拒绝玩家加入");
+            }
+        }
+
+        Optional<StopServerScheduler.PlanSnapshot> stopServerPlan = stopServerScheduler.getCurrentPlanSnapshot();
+        if (stopServerPlan.isPresent()) {
+            if (stopServerPlan.get().maintenanceActive()) {
+                send(source, "&c注意：计划停服流程已进入停机维护阶段，将优先拒绝玩家加入。请使用 /pixelmcmanager stopserver status 查看。");
+            } else {
+                send(source, "&e注意：当前还存在计划停服流程，请使用 /pixelmcmanager stopserver status 查看。");
+            }
+        }
         return Command.SINGLE_SUCCESS;
     }
 

@@ -55,3 +55,17 @@
 53. Type `/pixelmcmanager stopserver ` and confirm Tab suggestions include both `status` and `cancel`.
 54. Confirm the original `<time>` argument still accepts values such as `/pixelmcmanager stopserver 10s`.
 55. Confirm a client without PixelMC Manager can still join normally when no maintenance is active.
+56. With no active maintenance plan, run `/pixelmcmanager maintenance status`.
+57. Run `/pixelmcmanager maintenance 1m`, then `/pixelmcmanager maintenance status`, and confirm it shows waiting for maintenance.
+58. Confirm `/pixelmcmanager maintenance 1m` sends the 1 minute reminder and the final 10 second countdown.
+59. Run `/pixelmcmanager maintenance 10s` and confirm it sends 10 to 1 second chat and subtitle countdown messages.
+60. At maintenance time, confirm online players are kicked with two colored lines: `服务器开始执行维护!` and `详细信息见QQ群:768322731`.
+61. While maintenance is active, confirm new joins are rejected with two colored lines: `服务器正在维护中!` and `详细信息见QQ群:768322731`.
+62. While maintenance is active, run `/pixelmcmanager maintenance now` and confirm it is rejected.
+63. While maintenance is active, run `/pixelmcmanager maintenance 1m` and confirm it is rejected.
+64. Before scheduled maintenance starts, run `/pixelmcmanager maintenance 5m` again and confirm the old plan is replaced and timing restarts.
+65. Before scheduled maintenance starts, run `/pixelmcmanager maintenance off` and confirm the plan is cancelled.
+66. While maintenance is active, run `/pixelmcmanager maintenance off` and confirm it says `已解除服务器维护状态，玩家现在可以重新加入。`.
+67. Type `/pixelmcmanager maintenance ` and confirm Tab suggestions include `now`, `off`, `status`, and common time values.
+68. Confirm `stopserver cancel` does not disable active maintenance, and `maintenance off` does not cancel a stopserver plan.
+69. Confirm a client without PixelMC Manager can still join normally when maintenance is inactive.

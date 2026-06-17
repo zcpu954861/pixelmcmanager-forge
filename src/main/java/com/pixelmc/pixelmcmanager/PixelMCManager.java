@@ -5,6 +5,7 @@ import com.pixelmc.pixelmcmanager.command.PixelMCManagerCommands;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
 import com.pixelmc.pixelmcmanager.event.DelayedMessageScheduler;
 import com.pixelmc.pixelmcmanager.event.WelcomeEventHandler;
+import com.pixelmc.pixelmcmanager.maintenance.MaintenanceScheduler;
 import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderResolver;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
@@ -25,9 +26,10 @@ public final class PixelMCManager {
         TextTemplateParser textParser = new TextTemplateParser(LOGGER);
         DelayedMessageScheduler scheduler = new DelayedMessageScheduler(configManager, statsStore, placeholderResolver, textParser);
         StopServerScheduler stopServerScheduler = new StopServerScheduler(configManager, textParser);
+        MaintenanceScheduler maintenanceScheduler = new MaintenanceScheduler(configManager, textParser);
 
-        MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, scheduler, stopServerScheduler));
-        MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, placeholderResolver, textParser, stopServerScheduler));
+        MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, scheduler, stopServerScheduler, maintenanceScheduler));
+        MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler));
 
         configManager.loadOrCreate();
         LOGGER.info("PixelMC Manager loaded.");

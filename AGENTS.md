@@ -9,6 +9,7 @@ Hard rules:
 - Do not add gameplay content, blocks, items, entities, GUI, Mixin, or networking unless explicitly requested.
 - Keep player stats in the active world save root under pixelmcmanager/player_stats.json.
 - Keep total online time based on real wall-clock milliseconds, not ticks.
+- Keep stopserver and maintenance states independent; stopserver join rejection has priority.
 - Prefer small, reviewable changes.
 - Always run a Gradle build before claiming success.
 

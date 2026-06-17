@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 public final class TimeArgumentParser {
     private static final Pattern TIME_PATTERN = Pattern.compile("^([1-9][0-9]*)([smhSMH])$");
     private static final Duration MAX_DURATION = Duration.ofHours(24);
-    private static final String USAGE = "用法：/pixelmcmanager stopserver <time>，例如 30s、10m、1h，最大 24h。";
+    private static final String USAGE = "时间格式无效，请使用正整数加 s/m/h，例如 30s、10m、1h，最大 24h。";
 
     private TimeArgumentParser() {
     }
@@ -39,13 +39,13 @@ public final class TimeArgumentParser {
                 default -> null;
             };
         } catch (ArithmeticException exception) {
-            return Result.failure("计划停服时间最大为 24h。");
+            return Result.failure("计划时间最大为 24h。");
         }
         if (duration == null || duration.isZero() || duration.isNegative()) {
             return Result.failure(USAGE);
         }
         if (duration.compareTo(MAX_DURATION) > 0) {
-            return Result.failure("计划停服时间最大为 24h。");
+            return Result.failure("计划时间最大为 24h。");
         }
         return Result.success(duration);
     }

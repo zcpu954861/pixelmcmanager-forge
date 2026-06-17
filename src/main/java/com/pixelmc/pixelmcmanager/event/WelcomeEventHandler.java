@@ -1,6 +1,7 @@
 package com.pixelmc.pixelmcmanager.event;
 
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.maintenance.MaintenanceScheduler;
 import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
 import com.pixelmc.pixelmcmanager.stats.PlayerLoginSnapshot;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
@@ -16,13 +17,15 @@ public final class WelcomeEventHandler {
     private final PlayerStatsStore statsStore;
     private final DelayedMessageScheduler scheduler;
     private final StopServerScheduler stopServerScheduler;
+    private final MaintenanceScheduler maintenanceScheduler;
     private long lastStatsCheckpointMillis = 0L;
 
-    public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, DelayedMessageScheduler scheduler, StopServerScheduler stopServerScheduler) {
+    public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, DelayedMessageScheduler scheduler, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.scheduler = scheduler;
         this.stopServerScheduler = stopServerScheduler;
+        this.maintenanceScheduler = maintenanceScheduler;
     }
 
     @SubscribeEvent
@@ -38,6 +41,9 @@ public final class WelcomeEventHandler {
             return;
         }
         if (stopServerScheduler.rejectMaintenanceJoin(player)) {
+            return;
+        }
+        if (maintenanceScheduler.rejectMaintenanceJoin(player)) {
             return;
         }
 
@@ -64,6 +70,9 @@ public final class WelcomeEventHandler {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         stopServerScheduler.onServerTick(event);
+        if (event.phase == TickEvent.Phase.END) {
+            maintenanceScheduler.tick(event.getServer());
+        }
         scheduler.onServerTick(event);
         if (event.phase != TickEvent.Phase.END || !statsStore.hasOnlineSessions()) {
             return;
