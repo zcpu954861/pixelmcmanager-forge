@@ -80,6 +80,10 @@ public final class AuditService {
         return entries;
     }
 
+    public void flush() {
+        // Audit records are appended immediately; this method documents that no buffered writes remain.
+    }
+
     private AuditEntry createEntry(CommandSourceStack source, String action, String args, String detail) {
         if (source.getEntity() instanceof ServerPlayer player) {
             return new AuditEntry(

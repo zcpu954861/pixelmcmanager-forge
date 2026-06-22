@@ -13,6 +13,8 @@ public final class WelcomeConfig {
     public List<String> returningMessages = new ArrayList<>();
     public int statsAutoSaveSeconds = 30;
     public boolean debugLogging = false;
+    public PermissionConfig permissions = new PermissionConfig();
+    public AnnouncementConfig announcements = new AnnouncementConfig();
 
     public static WelcomeConfig defaults() {
         WelcomeConfig config = new WelcomeConfig();
@@ -26,7 +28,7 @@ public final class WelcomeConfig {
         return config;
     }
 
-    public void normalize() {
+    public void normalize(org.slf4j.Logger logger) {
         if (delayTicks < 0) {
             delayTicks = 0;
         }
@@ -48,5 +50,13 @@ public final class WelcomeConfig {
         if (statsAutoSaveSeconds < 5 || statsAutoSaveSeconds > 600) {
             statsAutoSaveSeconds = 30;
         }
+        if (permissions == null) {
+            permissions = new PermissionConfig();
+        }
+        permissions.normalize(logger);
+        if (announcements == null) {
+            announcements = new AnnouncementConfig();
+        }
+        announcements.normalize(logger);
     }
 }

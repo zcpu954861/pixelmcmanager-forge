@@ -36,6 +36,20 @@ public final class PlaceholderResolver {
         return result.toString();
     }
 
+    public String resolveGlobal(String input, com.pixelmc.pixelmcmanager.config.WelcomeConfig config, MinecraftServer server) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+
+        ZoneId zoneId = parseZone(config.timezone);
+        Map<String, Supplier<String>> values = new HashMap<>();
+        values.put("online", () -> Integer.toString(server.getPlayerList().getPlayerCount()));
+        values.put("max", () -> Integer.toString(server.getMaxPlayers()));
+        values.put("date", () -> formatNow(config.dateFormat, zoneId));
+        values.put("time", () -> formatNow(config.timeFormat, zoneId));
+        return resolve(input, values);
+    }
+
     private Map<String, Supplier<String>> buildValues(PlaceholderContext context) {
         Map<String, Supplier<String>> values = new HashMap<>();
         PlayerStats stats = context.stats();
@@ -56,6 +70,21 @@ public final class PlaceholderResolver {
         values.put("first_join_date", () -> formatEpoch(stats == null ? 0L : stats.firstJoinEpochMillis, context.config().dateFormat, zoneId));
         values.put("last_join_date", () -> formatEpoch(context.lastJoinDateEpochMillis(), context.config().dateFormat, zoneId));
         return values;
+    }
+
+    private static String resolve(String input, Map<String, Supplier<String>> values) {
+        Matcher matcher = PLACEHOLDER.matcher(input);
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            Supplier<String> supplier = values.get(matcher.group(1));
+            if (supplier == null) {
+                matcher.appendReplacement(result, Matcher.quoteReplacement(matcher.group(0)));
+            } else {
+                matcher.appendReplacement(result, Matcher.quoteReplacement(supplier.get()));
+            }
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     private static ZoneId parseZone(String zone) {

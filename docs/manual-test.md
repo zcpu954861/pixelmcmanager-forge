@@ -1,7 +1,7 @@
 # PixelMC Manager Manual Test
 
 1. Build the jar with `.\gradlew.bat clean build`.
-2. Copy `build/libs/pixelmcmanager-forge-1.20.1-0.2.2.jar` into a Forge 1.20.1 server `mods/` directory.
+2. Copy `build/libs/pixelmcmanager-forge-1.20.1-0.3.0.jar` into a Forge 1.20.1 server `mods/` directory.
 3. Join the server from a client that does not install PixelMC Manager.
 4. On first join, confirm the `firstJoinMessages` lines are sent only to the joining player.
 5. Leave and join again, then confirm `returningMessages` and `{join_count}` are correct.
@@ -83,3 +83,21 @@
 81. Confirm audit records are stored at `<world-save-root>/pixelmcmanager/audit.jsonl`.
 82. Restart the server and confirm recent audit records can still be queried.
 83. Confirm a client without PixelMC Manager can still join normally when maintenance is inactive.
+
+## v0.3.0 Checks
+
+84. Edit `permissions.reloadLevel`, run `/pixelmcmanager reload`, and confirm the new level is used without restarting.
+85. Remove one permission field, reload, and confirm the default value is used.
+86. Set one permission field to a string and one to `9`, reload, and confirm both fall back to defaults and log warnings.
+87. Confirm dangerous commands `audit`, `stopserver`, `maintenance`, and `save` default to OP level 4.
+88. Run `/pixelmcmanager save` and confirm the success message says `已保存 PixelMC Manager 数据并请求服务器保存世界。`.
+89. After `/pixelmcmanager save`, confirm `player_stats.json` is updated and audit shows a `save` record.
+90. Run `/pixelmcmanager stats` and confirm it shows recorded players, current online/max, today active players, total playtime, uptime, and maintenance state.
+91. Confirm `/pixelmcmanager stats` updates online session playtime in memory but does not create an audit record.
+92. Confirm automatic announcements are silent with `announcements.enabled=false`.
+93. Enable announcements with a short delay and interval in a disposable test server, then confirm messages rotate in order.
+94. Set `announcements.messages` to an empty list and confirm no crash and no chat spam.
+95. Change announcement text, run `/pixelmcmanager reload`, and confirm the new text is used after the configured delay.
+96. Confirm announcement placeholders `{online}`, `{max}`, `{date}`, and `{time}` resolve when the message is sent.
+97. Run `.\gradlew.bat clean build` before packaging the Forge jar.
+98. After publishing a release, download the jar asset listed under `兼容版本与附件` and confirm the filename is `pixelmcmanager-forge-1.20.1-0.3.0.jar`.

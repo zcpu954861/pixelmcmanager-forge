@@ -4,6 +4,7 @@ import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
 import com.pixelmc.pixelmcmanager.audit.AuditService;
 import com.pixelmc.pixelmcmanager.maintenance.MaintenanceScheduler;
 import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
+import com.pixelmc.pixelmcmanager.runtime.ServerRuntimeStats;
 import com.pixelmc.pixelmcmanager.stats.PlayerLoginSnapshot;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,17 +19,21 @@ public final class WelcomeEventHandler {
     private final PlayerStatsStore statsStore;
     private final AuditService auditService;
     private final DelayedMessageScheduler scheduler;
+    private final AnnouncementScheduler announcementScheduler;
     private final StopServerScheduler stopServerScheduler;
     private final MaintenanceScheduler maintenanceScheduler;
+    private final ServerRuntimeStats runtimeStats;
     private long lastStatsCheckpointMillis = 0L;
 
-    public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, DelayedMessageScheduler scheduler, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler) {
+    public WelcomeEventHandler(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, DelayedMessageScheduler scheduler, AnnouncementScheduler announcementScheduler, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler, ServerRuntimeStats runtimeStats) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.auditService = auditService;
         this.scheduler = scheduler;
+        this.announcementScheduler = announcementScheduler;
         this.stopServerScheduler = stopServerScheduler;
         this.maintenanceScheduler = maintenanceScheduler;
+        this.runtimeStats = runtimeStats;
     }
 
     @SubscribeEvent
@@ -37,6 +42,7 @@ public final class WelcomeEventHandler {
         statsStore.load(event.getServer());
         auditService.load(event.getServer());
         lastStatsCheckpointMillis = System.currentTimeMillis();
+        runtimeStats.markServerStarted(lastStatsCheckpointMillis);
     }
 
     @SubscribeEvent
@@ -78,6 +84,9 @@ public final class WelcomeEventHandler {
             maintenanceScheduler.tick(event.getServer());
         }
         scheduler.onServerTick(event);
+        if (event.phase == TickEvent.Phase.END) {
+            announcementScheduler.tick(event.getServer());
+        }
         if (event.phase != TickEvent.Phase.END || !statsStore.hasOnlineSessions()) {
             return;
         }

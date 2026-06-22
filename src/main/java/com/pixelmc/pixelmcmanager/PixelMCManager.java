@@ -4,11 +4,13 @@ import com.mojang.logging.LogUtils;
 import com.pixelmc.pixelmcmanager.audit.AuditService;
 import com.pixelmc.pixelmcmanager.command.PixelMCManagerCommands;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
+import com.pixelmc.pixelmcmanager.event.AnnouncementScheduler;
 import com.pixelmc.pixelmcmanager.event.DelayedMessageScheduler;
 import com.pixelmc.pixelmcmanager.event.WelcomeEventHandler;
 import com.pixelmc.pixelmcmanager.maintenance.MaintenanceScheduler;
 import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderResolver;
+import com.pixelmc.pixelmcmanager.runtime.ServerRuntimeStats;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
 import com.pixelmc.pixelmcmanager.text.TextTemplateParser;
 import net.minecraftforge.common.MinecraftForge;
@@ -27,11 +29,13 @@ public final class PixelMCManager {
         PlaceholderResolver placeholderResolver = new PlaceholderResolver();
         TextTemplateParser textParser = new TextTemplateParser(LOGGER);
         DelayedMessageScheduler scheduler = new DelayedMessageScheduler(configManager, statsStore, placeholderResolver, textParser);
+        AnnouncementScheduler announcementScheduler = new AnnouncementScheduler(configManager, placeholderResolver, textParser);
         StopServerScheduler stopServerScheduler = new StopServerScheduler(configManager, textParser);
         MaintenanceScheduler maintenanceScheduler = new MaintenanceScheduler(configManager, textParser);
+        ServerRuntimeStats runtimeStats = new ServerRuntimeStats();
 
-        MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, auditService, scheduler, stopServerScheduler, maintenanceScheduler));
-        MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, auditService, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler));
+        MinecraftForge.EVENT_BUS.register(new WelcomeEventHandler(configManager, statsStore, auditService, scheduler, announcementScheduler, stopServerScheduler, maintenanceScheduler, runtimeStats));
+        MinecraftForge.EVENT_BUS.register(new PixelMCManagerCommands(configManager, statsStore, auditService, placeholderResolver, textParser, stopServerScheduler, maintenanceScheduler, runtimeStats));
 
         configManager.loadOrCreate();
         LOGGER.info("PixelMC Manager loaded.");

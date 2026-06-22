@@ -6,6 +6,8 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.pixelmc.pixelmcmanager.audit.AuditEntry;
 import com.pixelmc.pixelmcmanager.audit.AuditService;
+import com.pixelmc.pixelmcmanager.PixelMCManager;
+import com.pixelmc.pixelmcmanager.config.PermissionConfig;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfig;
 import com.pixelmc.pixelmcmanager.config.WelcomeConfigManager;
 import com.pixelmc.pixelmcmanager.maintenance.MaintenanceScheduler;
@@ -13,6 +15,7 @@ import com.pixelmc.pixelmcmanager.maintenance.StopServerScheduler;
 import com.pixelmc.pixelmcmanager.maintenance.TimeArgumentParser;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderContext;
 import com.pixelmc.pixelmcmanager.placeholder.PlaceholderResolver;
+import com.pixelmc.pixelmcmanager.runtime.ServerRuntimeStats;
 import com.pixelmc.pixelmcmanager.stats.PlayerStats;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsEntry;
 import com.pixelmc.pixelmcmanager.stats.PlayerStatsStore;
@@ -22,11 +25,13 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -48,8 +53,9 @@ public final class PixelMCManagerCommands {
     private final TextTemplateParser textParser;
     private final StopServerScheduler stopServerScheduler;
     private final MaintenanceScheduler maintenanceScheduler;
+    private final ServerRuntimeStats runtimeStats;
 
-    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler) {
+    public PixelMCManagerCommands(WelcomeConfigManager configManager, PlayerStatsStore statsStore, AuditService auditService, PlaceholderResolver placeholderResolver, TextTemplateParser textParser, StopServerScheduler stopServerScheduler, MaintenanceScheduler maintenanceScheduler, ServerRuntimeStats runtimeStats) {
         this.configManager = configManager;
         this.statsStore = statsStore;
         this.auditService = auditService;
@@ -57,6 +63,7 @@ public final class PixelMCManagerCommands {
         this.textParser = textParser;
         this.stopServerScheduler = stopServerScheduler;
         this.maintenanceScheduler = maintenanceScheduler;
+        this.runtimeStats = runtimeStats;
     }
 
     @SubscribeEvent
@@ -67,17 +74,19 @@ public final class PixelMCManagerCommands {
 
     private com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> managerRoot() {
         return Commands.literal("pixelmcmanager")
-                .requires(source -> source.hasPermission(2))
                 .executes(context -> help(context.getSource()))
                 .then(Commands.literal("reload")
+                        .requires(source -> hasPermission(source, permissions().reloadLevel))
                         .executes(context -> reload(context.getSource())))
                 .then(Commands.literal("preview")
+                        .requires(source -> hasPermission(source, permissions().previewLevel))
                         .executes(context -> preview(context.getSource(), false))
                         .then(Commands.literal("first")
                                 .executes(context -> preview(context.getSource(), true)))
                         .then(Commands.literal("returning")
                                 .executes(context -> preview(context.getSource(), false))))
                 .then(Commands.literal("logincount")
+                        .requires(source -> hasPermission(source, permissions().statsLevel))
                         .executes(context -> listLoginCounts(context.getSource()))
                         .then(Commands.argument("player", StringArgumentType.word())
                                 .suggests((context, builder) -> {
@@ -88,6 +97,7 @@ public final class PixelMCManagerCommands {
                                 })
                                 .executes(context -> showLoginCount(context.getSource(), StringArgumentType.getString(context, "player")))))
                 .then(Commands.literal("logintime")
+                        .requires(source -> hasPermission(source, permissions().statsLevel))
                         .executes(context -> listLoginTimes(context.getSource()))
                         .then(Commands.argument("player", StringArgumentType.word())
                                 .suggests((context, builder) -> {
@@ -97,8 +107,14 @@ public final class PixelMCManagerCommands {
                                     return SharedSuggestionProvider.suggest(statsStore.listKnownPlayerNames(), builder);
                                 })
                                 .executes(context -> showLoginTime(context.getSource(), StringArgumentType.getString(context, "player")))))
+                .then(Commands.literal("save")
+                        .requires(source -> hasPermission(source, permissions().saveLevel))
+                        .executes(context -> save(context.getSource())))
+                .then(Commands.literal("stats")
+                        .requires(source -> hasPermission(source, permissions().serverStatsLevel))
+                        .executes(context -> serverStats(context.getSource())))
                 .then(Commands.literal("stopserver")
-                        .requires(source -> source.hasPermission(4))
+                        .requires(source -> hasPermission(source, permissions().stopserverLevel))
                         .then(Commands.literal("cancel")
                                 .executes(context -> cancelStopServer(context.getSource())))
                         .then(Commands.literal("status")
@@ -107,7 +123,7 @@ public final class PixelMCManagerCommands {
                                 .suggests((context, builder) -> SharedSuggestionProvider.suggest(STOPSERVER_SUGGESTIONS, builder))
                                 .executes(context -> stopServer(context.getSource(), StringArgumentType.getString(context, "time")))))
                 .then(Commands.literal("maintenance")
-                        .requires(source -> source.hasPermission(4))
+                        .requires(source -> hasPermission(source, permissions().maintenanceLevel))
                         .then(Commands.literal("now")
                                 .executes(context -> startMaintenanceNow(context.getSource())))
                         .then(Commands.literal("off")
@@ -118,7 +134,7 @@ public final class PixelMCManagerCommands {
                                 .suggests((context, builder) -> SharedSuggestionProvider.suggest(MAINTENANCE_SUGGESTIONS, builder))
                                 .executes(context -> scheduleMaintenance(context.getSource(), StringArgumentType.getString(context, "time")))))
                 .then(Commands.literal("audit")
-                        .requires(source -> source.hasPermission(4))
+                        .requires(source -> hasPermission(source, permissions().auditLevel))
                         .executes(context -> showAudit(context.getSource(), DEFAULT_AUDIT_COUNT))
                         .then(Commands.literal("last")
                                 .executes(context -> showAudit(context.getSource(), DEFAULT_AUDIT_COUNT))
@@ -133,9 +149,59 @@ public final class PixelMCManagerCommands {
         send(source, "&b/pixelmcmanager preview [first|returning]");
         send(source, "&b/pixelmcmanager logincount [player]");
         send(source, "&d/pixelmcmanager logintime [player]");
+        send(source, "&a/pixelmcmanager save");
+        send(source, "&e/pixelmcmanager stats");
         send(source, "&c/pixelmcmanager stopserver <time|cancel|status>");
         send(source, "&6/pixelmcmanager maintenance <time|now|off|status>");
         send(source, "&9/pixelmcmanager audit [last] [count]");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int save(CommandSourceStack source) {
+        MinecraftServer server = source.getServer();
+        try {
+            if (!statsStore.ensureLoaded(server)) {
+                source.sendFailure(Component.literal("PixelMC Manager 玩家统计加载失败，请检查服务器日志。"));
+                return 0;
+            }
+            statsStore.checkpointOnlinePlayers(server, System.currentTimeMillis(), true);
+            auditService.flush();
+            configManager.saveCurrent();
+            server.saveEverything(false, true, true);
+            auditService.record(source, "save", "", "data saved");
+            source.sendSuccess(() -> textParser.parse("&a已保存 PixelMC Manager 数据并请求服务器保存世界。", configManager.getConfig()), false);
+            return Command.SINGLE_SUCCESS;
+        } catch (Exception exception) {
+            PixelMCManager.LOGGER.error("Failed to save PixelMC Manager data or world.", exception);
+            source.sendFailure(textParser.parse("&c保存过程中出现错误，请检查服务器日志。", configManager.getConfig()));
+            return 0;
+        }
+    }
+
+    private int serverStats(CommandSourceStack source) {
+        if (!checkpointForQuery(source)) {
+            return 0;
+        }
+
+        MinecraftServer server = source.getServer();
+        List<PlayerStatsEntry> entries = statsStore.listAll();
+        ZoneId zoneId = ZoneId.systemDefault();
+        long todayStart = LocalDate.now(zoneId).atStartOfDay(zoneId).toInstant().toEpochMilli();
+        long tomorrowStart = LocalDate.now(zoneId).plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli();
+        long todayActive = entries.stream()
+                .filter(entry -> entry.stats().lastJoinEpochMillis >= todayStart && entry.stats().lastJoinEpochMillis < tomorrowStart)
+                .count();
+        long totalPlaytime = entries.stream()
+                .mapToLong(entry -> Math.max(0L, entry.stats().totalOnlineMillis))
+                .sum();
+
+        send(source, "&7❰ &b&l✦ &f&lPixelMC 服务器统计 &e&l✦ &7❱");
+        send(source, "&f记录玩家数：&a" + entries.size());
+        send(source, "&f当前在线：&a" + server.getPlayerList().getPlayerCount() + "&7/&e" + server.getMaxPlayers());
+        send(source, "&f今日活跃玩家：&a" + todayActive);
+        send(source, "&f总累计游玩时长：&d" + TimeFormatUtil.formatFriendly(totalPlaytime));
+        send(source, "&f本次服务器运行时间：&b" + TimeFormatUtil.formatFriendly(runtimeStats.uptimeMillis(System.currentTimeMillis())));
+        send(source, "&f维护状态：&6" + maintenanceState());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -442,6 +508,28 @@ public final class PixelMCManagerCommands {
         return true;
     }
 
+    private String maintenanceState() {
+        Optional<StopServerScheduler.PlanSnapshot> stopPlan = stopServerScheduler.getCurrentPlanSnapshot();
+        if (stopPlan.isPresent()) {
+            return stopPlan.get().maintenanceActive() ? "停机维护中" : "计划停服中";
+        }
+
+        MaintenanceScheduler.StatusSnapshot maintenance = maintenanceScheduler.getStatusSnapshot();
+        return switch (maintenance.state()) {
+            case ACTIVE -> "维护中";
+            case SCHEDULED -> "已预定维护";
+            case NONE -> "无";
+        };
+    }
+
+    private PermissionConfig permissions() {
+        return configManager.getConfig().permissions;
+    }
+
+    private static boolean hasPermission(CommandSourceStack source, int level) {
+        return source.hasPermission(level);
+    }
+
     private void send(CommandSourceStack source, String message) {
         WelcomeConfig config = configManager.getConfig();
         Component component = textParser.parse(message, config);
@@ -481,6 +569,7 @@ public final class PixelMCManagerCommands {
             case "maintenance_off" -> "maintenance off";
             case "maintenance_override" -> "maintenance " + entry.args + " 覆盖旧计划";
             case "maintenance_now_override" -> "maintenance now 覆盖旧计划";
+            case "save" -> "save";
             default -> entry.action;
         };
         return safeAuditText(action);

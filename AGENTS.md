@@ -11,6 +11,10 @@ Hard rules:
 - Keep total online time based on real wall-clock milliseconds, not ticks.
 - Keep stopserver and maintenance states independent; stopserver join rejection has priority.
 - Store audit history in the active world save root under pixelmcmanager/audit.jsonl.
+- Keep command permission levels configurable as OP levels 0-4, with dangerous commands defaulting to OP 4.
+- Keep /pixelmcmanager save responsible for stats checkpoint, stats save, audit flush confirmation, config save, and server world save request.
+- Keep /pixelmcmanager stats read-only for audit and based on in-memory stats with a light online-player checkpoint before reading.
+- Keep automatic announcements disabled by default, chat-only, sequential, reload-aware, and low overhead; do not format messages every tick.
 - Prefer small, reviewable changes.
 - Always run a Gradle build before claiming success.
 
